@@ -379,6 +379,9 @@ publishingStyles.textContent=`
 #game #tip {bottom:calc(64px + env(safe-area-inset-bottom));padding-inline:12px}
 #game .v6tile:disabled {opacity:.70}
 #game #weapon {white-space:normal}
+@media (max-width:600px) {
+  #game #tip {bottom:calc(102px + env(safe-area-inset-bottom))}
+}
 @media (any-pointer:coarse) {
   #game #steer.active {display:flex}
   #game #steer button {width:44px;height:44px}
