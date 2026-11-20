@@ -1,5 +1,5 @@
 const prefix = 'santa-north-pole-';
-const cacheName = prefix + 'v8-pages-2';
+const cacheName = prefix + 'v8-pages-3';
 const scope = new URL(self.registration.scope);
 const assetUrls = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon.ico']
   .map(path => new URL(path, scope).href);
