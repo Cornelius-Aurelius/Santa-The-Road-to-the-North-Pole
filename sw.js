@@ -1,5 +1,5 @@
 const prefix = 'santa-north-pole-';
-const cacheName = prefix + 'v8-pages-4';
+const cacheName = prefix + 'v8-pages-5';
 const scope = new URL(self.registration.scope);
 const assetUrls = ['./index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon.ico']
   .map(path => new URL(path, scope).href);
@@ -31,13 +31,7 @@ self.addEventListener('fetch', event => {
   if (!gameNavigation && !assetUrls.includes(url.href)) return;
   event.respondWith((async () => {
     const cache = await caches.open(cacheName);
-    if (!gameNavigation) return await cache.match(request) || fetch(request);
-    try {
-      const response = await fetch(request);
-      if (response.ok) await cache.put(indexUrl, response.clone());
-      return response;
-    } catch {
-      return await cache.match(indexUrl) || Response.error();
-    }
+    const cached = await cache.match(gameNavigation ? indexUrl : request);
+    return cached || fetch(request);
   })());
 });
