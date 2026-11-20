@@ -392,8 +392,8 @@ publishingStyles.textContent=`
 @media (max-height:530px) and (orientation:landscape){
   #game #hud {gap:4px;padding-top:max(6px,env(safe-area-inset-top))}
   #game #hud .pill {padding-block:4px}
-  #game #panic {top:calc(138px + env(safe-area-inset-top));font-size:14px}
-  #game #toast {top:calc(158px + env(safe-area-inset-top));font-size:clamp(16px,3vw,24px);z-index:2}
+  #game #panic {top:calc(var(--hud-height,154px) + 6px);font-size:14px}
+  #game #toast {top:calc(var(--hud-height,154px) + 26px);font-size:clamp(16px,3vw,24px);z-index:2}
   #game #menu {gap:6px}
   #game #menu .intro {max-width:550px}
   #game #menu .title {font-size:38px}
@@ -406,6 +406,11 @@ publishingStyles.textContent=`
 }
 `;
 document.head.append(publishingStyles);
+if(window.ResizeObserver){
+  const hud=$('hud');
+  new ResizeObserver(()=>root.style.setProperty('--hud-height',hud.offsetHeight+'px')).observe(hud,{box:'border-box'});
+}
+
 canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();switchMode('paused');$('error').hidden=false;$('error').textContent='Graphics context was interrupted. Reload the page to resume.'});resetState();switchMode('menu');requestAnimationFrame(loop);
 })();
 </script></body></html>
