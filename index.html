@@ -45,7 +45,7 @@
     <button id="fireButton" aria-label="Hold to fire">FIRE</button>
   </div>
   <div class="tools"><button id="pause" aria-label="Pause game">Ⅱ</button><button id="mute" aria-label="Toggle sound" aria-pressed="false">Sound off</button><button id="portrait" aria-pressed="false" aria-label="Toggle portrait recording layout">9:16</button><button id="full" aria-label="Fullscreen">⛶</button></div>
-</div><section class="overlay" id="menu"><h1 class="title">SANTA</h1><div class="subtitle">The Road to the North Pole</div><p class="intro">Blast zombie elves with cookies and milk in this free 3D Christmas survival game. Recruit a Santa army and fight giant bosses across 100 campaign levels and 22 worlds.</p><button class="play" id="play">PLAY NOW</button><span class="intro desktopGuide">Drag or use the arrows to steer. Hold the mouse button, Space or the controller trigger to fire.</span><span class="intro mobileGuide">Drag across the road or hold an arrow to steer. Hold FIRE to shoot while you move.</span><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="results" hidden><h2 id="resulttitle"></h2><div id="resultinfo"></div><button class="play" id="restart">PLAY AGAIN</button><button id="home">Main menu</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="paused" hidden><h2>Game paused</h2><button class="play" id="resume">RESUME</button><button id="reset">Restart run</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer><div></div></section><div id="error" class="error" hidden></div><noscript><div class="error">Enable JavaScript to play Santa: The Road to the North Pole.</div></noscript></main>
+</div><section class="overlay" id="menu"><h1 class="title">SANTA</h1><div class="subtitle">The Road to the North Pole</div><p class="intro">Blast zombie elves with cookies and milk in this free 3D Christmas survival game. Recruit a Santa army and fight giant bosses across 100 campaign levels and 22 worlds.</p><button class="play" id="play">PLAY NOW</button><span class="intro desktopGuide">Steer with ← and →. Hold ↑ or Space to fire. Mouse and controller also work.</span><span class="intro mobileGuide">Drag across the road or hold an arrow to steer. Hold FIRE to shoot while you move.</span><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="results" hidden><h2 id="resulttitle"></h2><div id="resultinfo"></div><button class="play" id="restart">PLAY AGAIN</button><button id="home">Main menu</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="paused" hidden><h2>Game paused</h2><button class="play" id="resume">RESUME</button><button id="reset">Restart run</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer><div></div></section><div id="error" class="error" hidden></div><noscript><div class="error">Enable JavaScript to play Santa: The Road to the North Pole.</div></noscript></main>
 <script>
 'use strict';
 (()=>{
@@ -58,12 +58,60 @@ const clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), mix=(a,b,t)=>a+(b-a)*t, rand=(a,
 function colour(h){let n=parseInt(h.replace('#',''),16);return [(n>>16&255)/255,(n>>8&255)/255,(n&255)/255]}
 const C={snow:colour('e8f4fc'),white:colour('fffefa'),road:colour('cedce7'),ice:colour('a3c3d9'),red:colour('c52c3e'),darkred:colour('771f32'),green:colour('195d48'),elf:colour('36854c'),skin:colour('e4b48c'),zskin:colour('90b681'),gold:colour('ffc75a'),black:colour('182b37'),wood:colour('a4734e'),brown:colour('a26338'),blue:colour('2676a6'),shadow:colour('a1b5c7'),pink:colour('f794aa'),cookie:colour('d89955'),purple:colour('795fa3')};
 const vs=`#version 300 es
-precision highp float; layout(location=0) in vec3 v; layout(location=1) in vec3 n; layout(location=2) in vec3 pos; layout(location=3) in vec3 scale; layout(location=4) in float yaw; layout(location=5) in vec3 color; uniform vec4 cam; uniform vec2 lens; out vec3 norm; out vec3 col; out vec3 world; out float depth;
-void main(){float c=cos(yaw),s=sin(yaw);vec3 p=v*scale;vec3 q=n/max(scale,vec3(.02));world=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z)+pos;norm=normalize(vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z));col=color;vec3 d=world-vec3(0.,cam.x,cam.y);float cy=d.y*cam.z+d.z*cam.w;depth=-d.y*cam.w+d.z*cam.z;float near=.25,far=230.;gl_Position=vec4(d.x*lens.x,cy*lens.y,(far+near)/(far-near)*depth-2.*far*near/(far-near),depth);}`;
+precision highp float;
+layout(location=0) in vec3 v;
+layout(location=1) in vec3 n;
+layout(location=2) in vec3 pos;
+layout(location=3) in vec3 scale;
+layout(location=4) in float yaw;
+layout(location=5) in vec3 color;
+uniform vec4 cam;
+uniform vec2 lens;
+out vec3 litColour;
+out vec3 world;
+out float depth;
+flat out float roadMaterial;
+void main(){
+  float c=cos(yaw),s=sin(yaw);
+  vec3 p=v*scale,q=n/max(scale,vec3(.02));
+  world=vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z)+pos;
+  vec3 normal=normalize(vec3(c*q.x+s*q.z,q.y,-s*q.x+c*q.z));
+  float sun=max(0.,dot(normal,vec3(-.47,.79,-.39)));
+  float sky=normal.y*.5+.5;
+  vec3 shade=mix(vec3(.37,.46,.60),vec3(.65,.72,.81),sky);
+  litColour=vec3(abs(color.r),color.gb)*(shade+sun*vec3(.48,.40,.30));
+  roadMaterial=color.r<0.?1.:0.;
+  vec3 d=world-vec3(0.,cam.x,cam.y);
+  float cy=d.y*cam.z+d.z*cam.w;
+  depth=-d.y*cam.w+d.z*cam.z;
+  float near=.25,far=230.;
+  gl_Position=vec4(d.x*lens.x,cy*lens.y,(far+near)/(far-near)*depth-2.*far*near/(far-near),depth);
+}`;
 const fs=`#version 300 es
-precision highp float; in vec3 norm; in vec3 col; in vec3 world; in float depth; out vec4 rgba; void main(){vec3 sun=normalize(vec3(-.6,.9,-.45));float light=.49+.51*max(0.,dot(normalize(norm),sun));vec3 rgb=col*light+col*vec3(.07,.11,.17);float fog=smoothstep(58.,190.,depth);rgb=mix(rgb,vec3(.71,.84,.94),fog);rgba=vec4(rgb,1.);}`;
+precision highp float;
+in vec3 litColour;
+in vec3 world;
+in float depth;
+flat in float roadMaterial;
+uniform vec3 horizon;
+uniform float snowTravel;
+out vec4 rgba;
+void main(){
+  vec3 rgb=litColour;
+  if(roadMaterial>.5&&depth<86.){
+    float edge=smoothstep(5.6,7.2,abs(world.x));
+    float track=1.-smoothstep(.28,1.12,abs(abs(world.x)-2.05));
+    float drift=sin(world.x*1.7+(world.z+snowTravel)*.37);
+    float detail=1.-smoothstep(35.,86.,depth);
+    rgb=mix(rgb*vec3(.91,.95,1.02),rgb*vec3(1.07,1.065,1.06),edge);
+    rgb*=1.+detail*(drift*.028-track*.055);
+  }
+  rgba=vec4(mix(rgb,horizon,smoothstep(42.,175.,depth)),1.);
+}`;
 function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
 const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vs));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);const uc=gl.getUniformLocation(program,'cam'),ul=gl.getUniformLocation(program,'lens');
+const horizonUniform=gl.getUniformLocation(program,'horizon');
+const snowTravelUniform=gl.getUniformLocation(program,'snowTravel');
 function geom(){return {v:[],tri(a,b,c,normal){let u=b.map((x,i)=>x-a[i]),w=c.map((x,i)=>x-a[i]),n=normal||[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]],l=Math.hypot(...n)||1;n=n.map(x=>x/l);for(let p of [a,b,c])this.v.push(...p,...n)}}}
 function boxGeom(){let g=geom();for(let [a,b,c,d] of [[[.5,-.5,-.5],[.5,.5,-.5],[.5,.5,.5],[.5,-.5,.5]],[[-.5,-.5,.5],[-.5,.5,.5],[-.5,.5,-.5],[-.5,-.5,-.5]],[[-.5,.5,-.5],[-.5,.5,.5],[.5,.5,.5],[.5,.5,-.5]],[[-.5,-.5,.5],[-.5,-.5,-.5],[.5,-.5,-.5],[.5,-.5,.5]],[[-.5,-.5,.5],[.5,-.5,.5],[.5,.5,.5],[-.5,.5,.5]],[[.5,-.5,-.5],[-.5,-.5,-.5],[-.5,.5,-.5],[.5,.5,-.5]]]){g.tri(a,b,c);g.tri(a,c,d)}return g.v}
 function roundGeom(top,bottom,segments=12){let g=geom();for(let i=0;i<segments;i++){let a=i*PI*2/segments,b=(i+1)*PI*2/segments,p=[Math.cos(a)*bottom,-.5,Math.sin(a)*bottom],q=[Math.cos(b)*bottom,-.5,Math.sin(b)*bottom],r=[Math.cos(b)*top,.5,Math.sin(b)*top],s=[Math.cos(a)*top,.5,Math.sin(a)*top],n=[Math.cos((a+b)/2),bottom-top,Math.sin((a+b)/2)];g.tri(p,q,r,n);g.tri(p,r,s,n);g.tri([0,-.5,0],q,p,[0,-1,0]);if(top)g.tri([0,.5,0],s,r,[0,1,0])}return g.v}
@@ -112,7 +160,7 @@ function draw(type,x,y,z,sx,sy,sz,c,rot=0){
   const a=m.instances;
   a[i]=x;a[i+1]=y;a[i+2]=z;
   a[i+3]=sx;a[i+4]=sy;a[i+5]=sz;
-  a[i+6]=rot;a[i+7]=c[0];a[i+8]=c[1];a[i+9]=c[2];
+  a[i+6]=rot;a[i+7]=c===C.road?-c[0]:c[0];a[i+8]=c[1];a[i+9]=c[2];
   m.used+=10;
 }
 const B=(...a)=>draw('box',...a),S=(...a)=>draw('ball',...a),Y=(...a)=>draw('cyl',...a),T=(...a)=>draw('cone',...a);
@@ -174,7 +222,12 @@ shots=shots.filter(s=>!s.dead&&s.z<45);for(let e of enemies)if(e.hp<=0&&!e.noSco
 function environment(){B(0,-.28,84,55,.5,220,C.snow);B(0,-.025,84,14.4,.12,220,C.road);for(let side of [-1,1]){B(side*7.35,.24,84,.23,.45,220,C.ice);B(side*7.65,.18,84,.7,.35,220,C.snow);B(side*3.03,.045,84,.07,.02,220,C.snow);B(side*7.35,1.17,84,.13,.13,220,C.wood);B(side*7.35,.75,84,.12,.1,220,C.green)}let step=5.5,off=travel%step;for(let i=-3;i<27;i++){let z=i*step-off;for(let side of [-1,1]){B(side*7.35,.61,z,.21,1.24,.23,C.wood);S(side*7.35,1.31,z,.42,.29,.42,C.snow);for(let j=0;j<3;j++)S(side*7.35,1.02,z+j*step/3,.13,.16,.13,j%2?C.red:C.gold);let idx=Math.floor(travel/step)+i;let noise=Math.sin(idx*87.1+side*11)*.5+.5;tree(side*(10.5+noise*4),z+noise*2,2.2+noise*2.3);if(i%2===0){tree(side*(17+noise*5),z+1,3.7+noise*3);S(side*(9.1+noise),.1,z+1,1.7,.32,2.4,C.white)}}if(i%3===0)B(0,.04,z,.12,.021,1.2,C.snow)}
 let zz=158-Math.min(75,dist*.06);for(let i=-3;i<=3;i++){let x=i*8,sz=5.5+Math.abs(i)%2;B(x,2.5,zz+Math.abs(i)*4,sz,5,5,C.wood);B(x,2.4,zz+Math.abs(i)*4-2.53,sz*.85,4.4,.09,C.darkred);T(x,5.8,zz+Math.abs(i)*4,sz*1.42,3.3,sz*1.4,C.white);for(let a of [-1,1]){B(x+a*1.35,2.8,zz+Math.abs(i)*4-2.6,.9,1.2,.08,C.gold);B(x+a*1.35,2.8,zz+Math.abs(i)*4-2.65,.11,1.2,.08,C.wood)}B(x,1.1,zz+Math.abs(i)*4-2.6,1.3,2.2,.1,C.gold)}for(let i=-3;i<=3;i++){T(i*20,7,198,24,19,24,C.ice);T(i*20,12,198,11,10,11,C.snow)}return zz;}
 function drawGate(g){const cc=g.flash>0?C.white:g.n>0?C.blue:C.darkred;B(g.x,.08,g.z,2.9,.16,1.65,g.n>0?C.blue:C.darkred);B(g.x,1.18,g.z,2.86,1.22,.19,cc);B(g.x,.58,g.z,2.95,.12,.28,C.gold);B(g.x,1.82,g.z,2.95,.12,.28,C.gold);for(let a of [-1,1]){Y(g.x+a*1.44,.95,g.z,.18,1.9,.18,C.red);for(let j=0;j<4;j++)Y(g.x+a*1.44,.23+j*.46,g.z,.22,.15,.22,C.white)}S(g.x,1.94,g.z,.30,.18,.21,C.gold)}
-function render(){for(const m of meshes)m.used=0;ctx.clearRect(0,0,W,H);let homeZ=environment();for(let g of gates)drawGate(g);for(let b of boxes)gift(b.x,0,b.z,1.8,b.kind==='weapon'?C.red:b.kind==='army'?C.green:C.blue);for(let e of enemies)enemy(e);for(let sh of positions())santa(sh.x,sh.z,sh.s,t*10,sh.hero);for(let s of shots){if(s.milk){S(s.x,s.y,s.z,.16,.18,.65,C.white)}else{Y(s.x,s.y,s.z,.43,.12,.43,C.cookie,t*7);for(let i of [-1,1])S(s.x+i*.1,s.y+.065,s.z+.07,.07,.045,.07,C.brown)}}for(let p of particles)S(p.x,p.y,p.z,p.s,p.s,p.s,p.c);for(let f of snow)S(f.x,f.y,f.z,f.s,f.s,f.s,C.white);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniform4f(uc,camY,camZ,cos,sin);gl.uniform2f(ul,vscale/aspect,vscale);if(hardwareGL)for(const m of meshes){
+function render(){for(const m of meshes)m.used=0;ctx.clearRect(0,0,W,H);let homeZ=environment();for(let g of gates)drawGate(g);for(let b of boxes)gift(b.x,0,b.z,1.8,b.kind==='weapon'?C.red:b.kind==='army'?C.green:C.blue);for(let e of enemies)enemy(e);for(let sh of positions())santa(sh.x,sh.z,sh.s,t*10,sh.hero);for(let s of shots){if(s.milk){S(s.x,s.y,s.z,.16,.18,.65,C.white)}else{Y(s.x,s.y,s.z,.43,.12,.43,C.cookie,t*7);for(let i of [-1,1])S(s.x+i*.1,s.y+.065,s.z+.07,.07,.045,.07,C.brown)}}for(let p of particles)S(p.x,p.y,p.z,p.s,p.s,p.s,p.c);for(let f of snow)S(f.x,f.y,f.z,f.s,f.s,f.s,C.white);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniform4f(uc,camY,camZ,cos,sin);gl.uniform2f(ul,vscale/aspect,vscale);if(hardwareGL){
+  const sky=V6.stage.sky;
+  gl.uniform3f(horizonUniform,sky[0],sky[1],sky[2]);
+  gl.uniform1f(snowTravelUniform,travel%(2*PI/.37));
+}
+if(hardwareGL)for(const m of meshes){
   if(!m.used)continue;
   gl.bindVertexArray(m.vao);
   gl.bindBuffer(gl.ARRAY_BUFFER,m.ibuf);
@@ -258,11 +311,13 @@ window.addEventListener('pointerup',release);
 window.addEventListener('pointercancel',release);
 window.addEventListener('blur',clearInput);
 const isSpace=e=>e.code==='Space'||e.key===' ';
+const fireKey=e=>e.code==='ArrowUp'||e.key==='ArrowUp'?'arrow-up':isSpace(e)?'space':null;
 window.addEventListener('keydown',e=>{
-  if(isSpace(e)&&mode==='playing'){
-    // Space is a gameplay input even when a toolbar button still has focus.
+  const source=fireKey(e);
+  if(source&&mode==='playing'){
+    // Gameplay fire keys take priority over focused controls.
     e.preventDefault();
-    if(!e.repeat)beginFire('space');
+    if(!e.repeat)beginFire(source);
     return;
   }
   if(e.target.closest?.('select,input,textarea,a,button')&&e.key!=='Escape'&&mode!=='playing')return;
@@ -283,9 +338,10 @@ window.addEventListener('keydown',e=>{
 });
 window.addEventListener('keyup',e=>{
   delete keys[e.key];
-  if(isSpace(e)){
+  const source=fireKey(e);
+  if(source){
     if(mode==='playing')e.preventDefault();
-    endFire('space');
+    endFire(source);
   }
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(mode==='playing')switchMode('paused')}});
@@ -373,7 +429,7 @@ const pressureUpdate=update;update=function(dt){for(let f of formations)for(let 
 const environmentWithBarriers=environment;environment=function(){const ice=V5.obstacles.filter(o=>o.kind==='ice');const all=V5.obstacles;V5.obstacles=all.filter(o=>o.kind!=='ice');let zz=environmentWithBarriers();V5.obstacles=all;for(let o of ice){B(o.x,.05,o.z,3.04,.11,3.4,C.ice);for(let i=0;i<5;i++)B(o.x+(i-2)*.52,.115,o.z+(i%2-.5)*.65,.10,.04,2.3,C.black,(i%2?.5:-.6));S(o.x,.14,o.z,.46,.16,.46,C.white)}for(let s of shots){if(s.style==='missile'){B(s.x,s.y,s.z,.17,.19,.85,C.red);B(s.x,s.y,s.z+.24,.19,.20,.16,C.white);B(s.x,s.y,s.z-.22,.19,.20,.16,C.white);S(s.x,s.y,s.z-.45,.14,.14,.38,C.gold)}else if(s.style==='freeze'){S(s.x,s.y,s.z,.24,.23,.61,C.ice)}else if(s.style==='bomb'){S(s.x,s.y,s.z,.48,.20,.48,C.cookie);S(s.x,s.y+.16,s.z,.16,.16,.16,C.gold)}else if(s.style==='cannon'){S(s.x,s.y,s.z,.25,.24,.91,C.white)}}return zz};
 const basePrint=print;print=function(s,x,y,z,col,size){if(s==='+2'&&gates.some(g=>g.mult&&g.x===x&&Math.abs(g.z-.22-z)<.01))return;if(typeof s==='string'&&s.endsWith(' · BREAK')&&V5.obstacles.some(o=>o.kind==='ice'&&o.x===x&&o.z===z))s='⚠ FRAGILE ICE';basePrint(s,x,y,z,col,size)};
 // A lighter perspective renderer keeps play available on devices without WebGL 2.
-if(fallbackCanvas){const fullRender=render;render=function(){fullRender();const c=fallbackCanvas;c.setTransform(ratio,0,0,ratio,0,0);const sky=c.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#6ba6d4');sky.addColorStop(.42,'#e1f1ff');sky.addColorStop(1,'#f4fcff');c.fillStyle=sky;c.fillRect(0,0,W,H);function polygon(points,fill){const p=points.map(a=>project(...a));if(p.some(a=>!a))return;c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let a of p.slice(1))c.lineTo(a[0],a[1]);c.closePath();c.fillStyle=fill;c.fill()};polygon([[-7.2,.02,-8],[7.2,.02,-8],[7.2,.02,205],[-7.2,.02,205]],'#cadde9');for(let side of [-1,1])polygon([[side*7.2,.10,-8],[side*7.7,.10,-8],[side*7.7,.10,205],[side*7.2,.10,205]],'#91b9ce');let items=[];for(let [type,m] of Object.entries(M))for(let i=0;i<m.used;i+=10){const a=m.instances;const x=a[i],y=a[i+1],z=a[i+2],sx=a[i+3],sy=a[i+4],sz=a[i+5],r=a[i+7],g=a[i+8],b=a[i+9];if(sz>30||sx>30||z<-7)continue;const p=project(x,y,z);if(p&&p[0]>-120&&p[0]<W+120&&p[1]>-100&&p[1]<H+100)items.push({type,p,sx,sy,sz,r,g,b})}items.sort((a,b)=>b.p[2]-a.p[2]);for(let a of items){let [x,y,depth]=a.p,f=vscale*H/(2*depth),w=Math.max(.6,a.sx*f),h=Math.max(.6,a.sy*f+a.sz*f*sin*.36);c.fillStyle=`rgb(${Math.round(a.r*225)},${Math.round(a.g*228)},${Math.round(a.b*237)})`;if(a.type==='box'){c.fillRect(x-w/2,y-h/2,w,h);c.fillStyle='rgba(255,255,255,.17)';c.fillRect(x-w/2,y-h/2,w,h*.2)}else{c.beginPath();if(a.type==='cone'){c.moveTo(x,y-h*.58);c.lineTo(x+w*.5,y+h*.5);c.lineTo(x-w*.5,y+h*.5);c.closePath()}else c.ellipse(x,y,w/2,h/2,0,0,PI*2);c.fill()}}};}
+if(fallbackCanvas){const fullRender=render;render=function(){fullRender();const c=fallbackCanvas;c.setTransform(ratio,0,0,ratio,0,0);const sky=c.createLinearGradient(0,0,0,H);sky.addColorStop(0,'#6ba6d4');sky.addColorStop(.42,'#e1f1ff');sky.addColorStop(1,'#f4fcff');c.fillStyle=sky;c.fillRect(0,0,W,H);function polygon(points,fill){const p=points.map(a=>project(...a));if(p.some(a=>!a))return;c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let a of p.slice(1))c.lineTo(a[0],a[1]);c.closePath();c.fillStyle=fill;c.fill()};polygon([[-7.2,.02,-8],[7.2,.02,-8],[7.2,.02,205],[-7.2,.02,205]],'#cadde9');for(let side of [-1,1])polygon([[side*7.2,.10,-8],[side*7.7,.10,-8],[side*7.7,.10,205],[side*7.2,.10,205]],'#91b9ce');let items=[];for(let [type,m] of Object.entries(M))for(let i=0;i<m.used;i+=10){const a=m.instances;const x=a[i],y=a[i+1],z=a[i+2],sx=a[i+3],sy=a[i+4],sz=a[i+5],r=Math.abs(a[i+7]),g=a[i+8],b=a[i+9];if(sz>30||sx>30||z<-7)continue;const p=project(x,y,z);if(p&&p[0]>-120&&p[0]<W+120&&p[1]>-100&&p[1]<H+100)items.push({type,p,sx,sy,sz,r,g,b})}items.sort((a,b)=>b.p[2]-a.p[2]);for(let a of items){let [x,y,depth]=a.p,f=vscale*H/(2*depth),w=Math.max(.6,a.sx*f),h=Math.max(.6,a.sy*f+a.sz*f*sin*.36);c.fillStyle=`rgb(${Math.round(a.r*225)},${Math.round(a.g*228)},${Math.round(a.b*237)})`;if(a.type==='box'){c.fillRect(x-w/2,y-h/2,w,h);c.fillStyle='rgba(255,255,255,.17)';c.fillRect(x-w/2,y-h/2,w,h*.2)}else{c.beginPath();if(a.type==='cone'){c.moveTo(x,y-h*.58);c.lineTo(x+w*.5,y+h*.5);c.lineTo(x-w*.5,y+h*.5);c.closePath()}else c.ellipse(x,y,w/2,h/2,0,0,PI*2);c.fill()}}};}
 // V6 — a complete, persistent 100-level campaign with themed combat and eight modes.
 const biomes=[
  {name:'Snowy Woodland',foe:'elf',boss:'elf',bossName:'GIANT ELF',road:'c8dce9',snow:'e8f4fc',sky:[.66,.82,.95],weather:'snow',hazard:'snowball',icon:'🌲'},
