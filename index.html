@@ -85,10 +85,14 @@ if(hardwareGL){
   M.coneLow=mesh(roundGeom(0,.5,7));
 }
 const meshes=Object.values(M);
-let redraw=true;
+let redraw=true,captureHeight=0;
 gl.enable(gl.DEPTH_TEST);gl.clearColor(.66,.82,.95,1);
 let W=1,H=1,ratio=1,quality=.86,camY=15.5,camZ=-14,cos=.877,sin=.48,vscale=1.91,aspect=1,frameTime=0,slow=0;
-function resize(){let r=playfield.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);ratio=Math.min(devicePixelRatio||1,1.75,Math.sqrt(2200000/(W*H)))*quality;const width=Math.max(1,Math.round(W*ratio)),height=Math.max(1,Math.round(H*ratio));
+function resize(){let r=playfield.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);ratio=Math.min(devicePixelRatio||1,1.75,Math.sqrt(2200000/(W*H)))*quality;
+if(captureHeight){
+  const captureScale=captureHeight/H*Math.min(1,quality/.80);
+  ratio=Math.max(ratio,Math.min(captureScale,Math.sqrt(3400000/(W*H))));
+}const width=Math.max(1,Math.round(W*ratio)),height=Math.max(1,Math.round(H*ratio));
 if(canvas.width!==width||canvas.height!==height||labels.width!==width||labels.height!==height){
   canvas.width=labels.width=width;
   canvas.height=labels.height=height;
@@ -252,7 +256,39 @@ for(const [id,dir] of [['left',-1],['right',1],['fireButton',0]]){
 for(const event of releaseEvents)canvas.addEventListener(event,release);
 window.addEventListener('pointerup',release);
 window.addEventListener('pointercancel',release);
-window.addEventListener('blur',clearInput);window.addEventListener('keydown',e=>{if(e.target.closest?.('select,input,textarea,a,button')&&e.key!=='Escape'&&(mode!=='playing'||e.key===' '))return;if(['ArrowLeft','ArrowRight',' ','Escape'].includes(e.key))e.preventDefault();if(e.key===' '){if(e.repeat)return;if(mode==='playing')beginFire('space');else if(mode==='paused')switchMode('playing');else start();return}if(e.key==='Escape'){if(e.repeat)return;if(mode==='playing')switchMode('paused');else if(mode==='paused')switchMode('playing');return}if(mode==='playing')keys[e.key]=true});window.addEventListener('keyup',e=>{delete keys[e.key];if(e.key===' ')endFire('space')});document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(mode==='playing')switchMode('paused')}});
+window.addEventListener('blur',clearInput);
+const isSpace=e=>e.code==='Space'||e.key===' ';
+window.addEventListener('keydown',e=>{
+  if(isSpace(e)&&mode==='playing'){
+    // Space is a gameplay input even when a toolbar button still has focus.
+    e.preventDefault();
+    if(!e.repeat)beginFire('space');
+    return;
+  }
+  if(e.target.closest?.('select,input,textarea,a,button')&&e.key!=='Escape'&&mode!=='playing')return;
+  if(isSpace(e)||['ArrowLeft','ArrowRight','Escape'].includes(e.key))e.preventDefault();
+  if(isSpace(e)){
+    if(e.repeat)return;
+    if(mode==='paused')switchMode('playing');
+    else start();
+    return;
+  }
+  if(e.key==='Escape'){
+    if(e.repeat)return;
+    if(mode==='playing')switchMode('paused');
+    else if(mode==='paused')switchMode('playing');
+    return;
+  }
+  if(mode==='playing')keys[e.key]=true;
+});
+window.addEventListener('keyup',e=>{
+  delete keys[e.key];
+  if(isSpace(e)){
+    if(mode==='playing')e.preventDefault();
+    endFire('space');
+  }
+});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){clearInput();if(mode==='playing')switchMode('paused')}});
 $('play').onclick=start;$('restart').onclick=start;$('reset').onclick=start;$('resume').onclick=()=>switchMode('playing');$('home').onclick=()=>{resetState();switchMode('menu')};$('pause').onclick=()=>switchMode(mode==='playing'?'paused':'playing');$('portrait').onclick=()=>{let on=root.classList.toggle('portrait');$('portrait').setAttribute('aria-pressed',on);resize()};$('mute').onclick=()=>{muted=!muted;$('mute').textContent=muted?'Sound off':'Sound on';$('mute').setAttribute('aria-pressed',!muted);if(!muted){try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();audio.resume();beep(480,.1)}catch{}}};$('full').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else if(root.requestFullscreen)await root.requestFullscreen();else say('Use browser fullscreen')}catch{say('Fullscreen unavailable')}};
 // V5: relentless survival campaign. Everything is self-contained; no network or loading screen.
 const V5={mode:'campaign',difficulty:'normal',outfit:'classic',rng:null,heat:0,overheat:0,unlimited:0,freeze:0,combo:0,comboTime:0,kills:0,peak:0,waveTime:0,packs:0,delay:0,storm:0,shake:0,slowmo:0,warning:0,charge:0,weapon:0,obstacles:[],escapes:[],danger:0,beat:0,music:0,nearMiss:0,achievements:[],lastHUD:0,checkpoint:0};
@@ -431,7 +467,7 @@ const collection7=document.createElement('section');collection7.className='overl
 function showCards7(){collection7.hidden=false;$('cardCount7').textContent=`${P7.cards.length}/${biomes.length} WORLD CARDS · PRESTIGE ${P7.prestige}`;const grid=$('cardGrid7');grid.innerHTML='';for(let st of biomes){const b=document.createElement('div');b.className='v6tile';b.innerHTML=`<strong>${P7.cards.includes(st.name)?st.icon:'🔒'}</strong><span>${P7.cards.includes(st.name)?st.name:'Mystery card'}</span>`;grid.append(b)}$('prestige7').disabled=P6.completed<100||P7.ngplus;$('prestige7').textContent=P7.ngplus?'NEW GAME PLUS UNLOCKED':'PRESTIGE · Requires level 100'}$('cards7').onclick=showCards7;$('cardsBack7').onclick=()=>collection7.hidden=true;$('prestige7').onclick=()=>{if(P6.completed>=100&&!P7.ngplus){P7.prestige++;P7.ngplus=true;persist();showCards7()}};
 const challenge7=document.createElement('section');challenge7.className='overlay v6panel';challenge7.hidden=true;challenge7.innerHTML='<h2>Challenges & events</h2><div id="missionText7" class="v6small" style="white-space:pre-line"></div><button id="weeklyPlay7">Weekly Boss Challenge</button><button id="missionPlay7">Daily Mission</button><button id="eventPlay7">Christmas Event</button><button class="play" id="challengeBack7">BACK</button>';root.append(challenge7);
 const weekly7=()=>{const d=new Date();return `${d.getUTCFullYear()}-W${Math.floor((d-Date.UTC(d.getUTCFullYear(),0,1))/604800000)+1}`};$('mission7').onclick=()=>{challenge7.hidden=false;$('missionText7').textContent=`TODAY: defeat 150 enemies · ${P7.missions[dailyKey]?'Completed':'100 bonus coins'}\nWEEKLY: defeat 7 bosses · ${P7.weekly[weekly7()]||0} best\nCHRISTMAS EVENT: collect 3 treasure gifts for a bonus.`};for(let [id,m] of [['weeklyPlay7','weekly'],['missionPlay7','mission'],['eventPlay7','seasonal']])$(id).onclick=()=>{$('gameMode').value=m;challenge7.hidden=true;refresh6()};$('challengeBack7').onclick=()=>challenge7.hidden=true;
-const special7=document.createElement('button');special7.id='special7';special7.textContent='STAR 0%';special7.onclick=()=>activateSpecial7();document.querySelector('.tools').prepend(special7);const rec7=document.createElement('button');rec7.textContent='REC';rec7.id='rec7';rec7.onclick=()=>V7.record?stopRecord7(true):startRecord7(false);document.querySelector('.tools').prepend(rec7);const state7=document.createElement('div');state7.className='v7status';state7.id='state7';$('hudSignals').append(state7);
+const special7=document.createElement('button');special7.id='special7';special7.textContent='STAR 0%';special7.onclick=()=>activateSpecial7();document.querySelector('.tools').prepend(special7);const rec7=document.createElement('button');rec7.textContent='REC';rec7.id='rec7';rec7.setAttribute('aria-label','Start recording');rec7.setAttribute('aria-pressed','false');rec7.onclick=()=>V7.record?stopRecord7(true):startRecord7(false);document.querySelector('.tools').prepend(rec7);const state7=document.createElement('div');state7.className='v7status';state7.id='state7';$('hudSignals').append(state7);
 const share7=document.createElement('button');share7.textContent='Save victory card';share7.hidden=true;$('results').insertBefore(share7,$('home'));share7.onclick=()=>victoryCard7();
 const shop7=openShop;openShop=function(){shop7();const grid=$('shopGrid6');for(let k of ['elf','snowman','toy']){const b=document.createElement('button'),cost=120+P7.army[k]*150;b.disabled=P7.army[k]>=5||P6.coins<cost;b.innerHTML=`<strong>${k.toUpperCase()} CLASS · Lv ${P7.army[k]}</strong><br>${k==='elf'?'Fast recruits':k==='snowman'?'Defensive bonus':'Heavy damage bonus'}<br>🪙 ${cost}`;b.onclick=()=>{if(P6.coins>=cost&&P7.army[k]<5){P6.coins-=cost;P7.army[k]++;persist();openShop()}};grid.append(b)}};$('shop6').onclick=openShop;
 const reset7=resetState;resetState=function(){let m=$('gameMode').value;if(m==='ngplus'&&!P7.ngplus){$('gameMode').value='campaign';m='campaign'}Object.assign(V7,{cap:P7.graphics==='ultra'?1000:P7.graphics==='low'?250:500,charge:0,chargeReady:false,shield:0,superTime:0,comeback:false,narrow:0,emergency:0,rear:[],twins:[],recruits:{elf:P7.army.elf,snowman:P7.army.snowman,toy:P7.army.toy},mines:[],ghostPath:[],ghostClock:0,ghostBest:null,ghostIndex:0,recordKey:m+':'+V6.selected,weeklyBosses:0,roleClock:0,formation:P7.formation,loadout:[...P7.loadout],fightClock:0,peakPressure:0,superTarget:null,treasures:0,lastRole:0});V7.ghostBest=P7.ghosts[V7.recordKey]||null;reset7();if(m==='weekly'){V5.rng=seed(weekly7());V6.stage=biomes[12+(Math.floor(seed(weekly7())()*10))]}if(m==='ngplus'){V5.difficulty='hard';V6.stage=stageFor(V6.selected)}if(m==='seasonal')V6.stage=biomes[5];if(m==='mission')V5.rng=seed(dailyKey+'mission');V7.formation=P7.formation;if(V7.loadout[0]&&weaponUnlock7(V7.loadout[0]))V5.weapon=V7.loadout[0];if(P7.prestige)level+=P7.prestige;};
@@ -460,9 +496,100 @@ const env7=environment;environment=function(){const zz=env7(),st=V6.stage,n=biom
 const render7=render;render=function(){render7();if(P7.colourblind){for(let g of gates)print(g.mult?'×':'▲',g.x,2.0,g.z,'#ffffd0',14);}for(let e of enemies)if(e.role&&e.z<22&&e.hp>0)print(({healer:'✚ HEALER',commander:'◆ COMMANDER',summoner:'✦ SUMMONER',thief:'! THIEF'})[e.kind]||'!',e.x,e.s*2.5,e.z,'#ffe2ac',12);if(V7.record)recordFrame7()};
 // Local creator tools. No screen, microphone, or account capture; only the game canvas.
 function downloadBlob7(blob,name){if(!blob)return;let url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}
-function startRecord7(auto){if(V7.record||typeof MediaRecorder==='undefined'){if(!auto)say('RECORDING NOT SUPPORTED');return}try{const c=document.createElement('canvas');c.width=540;c.height=960;const cx=c.getContext('2d');if(!c.captureStream||!cx)return;const stream=c.captureStream(24);const r=new MediaRecorder(stream,{videoBitsPerSecond:2500000});const rec={r,stream,c,cx,chunks:[],auto,last:0};V7.record=rec;r.ondataavailable=e=>{if(e.data?.size)rec.chunks.push(e.data)};r.onstop=()=>{for(let tr of stream.getTracks())tr.stop();if(rec.save&&rec.chunks.length)downloadBlob7(new Blob(rec.chunks,{type:r.mimeType||'video/webm'}),'Santa-North-Pole-'+Date.now()+'.webm')};r.start(1000);rec7.textContent='STOP';rec7.classList.add('v7record')}catch{V7.record=null;if(!auto)say('RECORDING UNAVAILABLE')}}
-function recordFrame7(){const r=V7.record;if(!r)return;const now=performance.now();if(now-r.last<40)return;r.last=now;let c=r.cx,w=r.c.width,h=r.c.height;c.fillStyle='#102236';c.fillRect(0,0,w,h);let sw=canvas.width,sh=canvas.height,cut=Math.min(sw,sh*9/16);c.drawImage(canvas,(sw-cut)/2,0,cut,sh,0,0,w,h);c.drawImage(labels,(sw-cut)/2,0,cut,sh,0,0,w,h);c.fillStyle='#102035bf';c.fillRect(8,8,w-16,66);c.font='bold 21px system-ui';c.fillStyle='#fff0c4';c.fillText('SANTA · '+V6.stage.name.toUpperCase(),20,34);c.font='bold 16px system-ui';c.fillText('SCORE '+score+'  ·  ARMY '+army+'  ·  HP '+Math.round(hp),20,60)}
-function stopRecord7(save){const r=V7.record;if(!r)return;V7.record=null;rec7.textContent='REC';rec7.classList.remove('v7record');r.save=save;try{if(r.r.state!=='inactive')r.r.stop()}catch{}};
+function setRecordingUI(on){
+  rec7.textContent=on?'STOP':'REC';
+  rec7.classList.toggle('v7record',on);
+  rec7.setAttribute('aria-label',on?'Stop and save recording':'Start recording');
+  rec7.setAttribute('aria-pressed',String(on));
+}
+function clearRecording(rec){
+  if(V7.record!==rec)return;
+  V7.record=null;
+  captureHeight=0;
+  setRecordingUI(false);
+  resize();
+}
+function startRecord7(auto){
+  if(V7.record)return;
+  if(typeof MediaRecorder==='undefined'){
+    if(!auto)say('RECORDING NOT SUPPORTED');
+    return;
+  }
+  let stream;
+  try{
+    const c=document.createElement('canvas');
+    const hd=!auto&&P7.graphics!=='low';
+    c.width=hd?1080:720;
+    c.height=hd?1920:1280;
+    const cx=c.getContext('2d',{alpha:false});
+    if(!c.captureStream||!cx)throw Error('Canvas capture unavailable');
+    cx.imageSmoothingQuality='high';
+    const fps=30;
+    stream=c.captureStream(fps);
+    const videoBitsPerSecond=hd?12000000:6500000;
+    const mimeType=['video/webm;codecs=vp8','video/webm','video/mp4']
+      .find(type=>MediaRecorder.isTypeSupported?.(type));
+    const options=mimeType?{mimeType,videoBitsPerSecond}:{videoBitsPerSecond};
+    const recorder=new MediaRecorder(stream,options);
+    const rec={recorder,c,cx,chunks:[],auto,nextFrame:performance.now(),frameInterval:1000/fps,save:false};
+    recorder.ondataavailable=e=>{if(e.data?.size)rec.chunks.push(e.data)};
+    recorder.onstop=()=>{
+      stream.getTracks().forEach(track=>track.stop());
+      clearRecording(rec);
+      if(!rec.save||!rec.chunks.length)return;
+      const type=recorder.mimeType||rec.chunks[0].type||'video/webm';
+      const extension=type.startsWith('video/mp4')?'mp4':'webm';
+      downloadBlob7(new Blob(rec.chunks,{type}),'Santa-North-Pole-'+c.width+'p-'+Date.now()+'.'+extension);
+    };
+    recorder.onerror=()=>{
+      rec.save=false;
+      stream.getTracks().forEach(track=>track.stop());
+      clearRecording(rec);
+      if(!auto)say('RECORDING INTERRUPTED');
+    };
+    recorder.start(1000);
+    V7.record=rec;
+    captureHeight=c.height;
+    resize();
+    setRecordingUI(true);
+    if(!auto)say(hd?'RECORDING IN 1080P':'RECORDING IN 720P');
+  }catch{
+    stream?.getTracks().forEach(track=>track.stop());
+    if(!auto)say('RECORDING UNAVAILABLE');
+  }
+}
+function recordFrame7(){
+  const rec=V7.record;
+  if(!rec)return;
+  const now=performance.now();
+  if(now+1<rec.nextFrame)return;
+  rec.nextFrame=Math.max(rec.nextFrame+rec.frameInterval,now);
+  const {cx,c}=rec,w=c.width,h=c.height;
+  const sw=canvas.width,sh=canvas.height,cut=Math.min(sw,sh*w/h);
+  const drawWidth=cut*h/sh,dx=(w-drawWidth)/2;
+  if(dx>.01){
+    cx.fillStyle='#102236';
+    cx.fillRect(0,0,w,h);
+  }
+  cx.drawImage(canvas,(sw-cut)/2,0,cut,sh,dx,0,drawWidth,h);
+  cx.drawImage(labels,(sw-cut)/2,0,cut,sh,dx,0,drawWidth,h);
+  const inset=w*.036;
+  cx.fillStyle='#102035e8';
+  cx.fillRect(inset,inset,w-2*inset,w*.115);
+  cx.fillStyle='#fff0c4';
+  cx.font=`bold ${Math.round(w*.035)}px system-ui`;
+  cx.fillText('SANTA · '+V6.stage.name.toUpperCase(),inset*1.55,inset+w*.047,w-3.1*inset);
+  cx.font=`bold ${Math.round(w*.029)}px system-ui`;
+  cx.fillText('SCORE '+score.toLocaleString()+'  ·  ARMY '+army+'  ·  HP '+Math.round(hp),
+    inset*1.55,inset+w*.088,w-3.1*inset);
+}
+function stopRecord7(save){
+  const rec=V7.record;
+  if(!rec)return;
+  rec.save=save;
+  clearRecording(rec);
+  if(rec.recorder.state!=='inactive')rec.recorder.stop();
+}
 function victoryCard7(){try{let c=document.createElement('canvas');c.width=1080;c.height=1350;let a=c.getContext('2d');a.fillStyle='#10283c';a.fillRect(0,0,1080,1350);a.fillStyle='#b83045';a.fillRect(0,0,1080,250);a.fillStyle='#fff1d0';a.textAlign='center';a.font='900 64px system-ui';a.fillText('SANTA',540,100);a.font='700 38px system-ui';a.fillText('THE ROAD TO THE NORTH POLE',540,174);a.font='800 48px system-ui';a.fillText('MY RUN',540,360);a.font='900 112px system-ui';a.fillText(score.toLocaleString(),540,525);a.font='700 38px system-ui';a.fillText(V6.stage.name,540,615);a.fillText('LEVEL '+V6.selected+'  ·  '+V5.kills+' KILLS',540,690);a.fillText('ARMY '+army+'  ·  '+V6.bosses+' BOSSES',540,765);a.fillStyle='#ffe09a';a.font='bold 32px system-ui';a.fillText('Can you beat my score?',540,1000);a.font='24px system-ui';a.fillText('corneliusaurelius.com',540,1200);c.toBlob(b=>downloadBlob7(b,'Santa-Challenge.png'),'image/png')}catch{say('Card unavailable')}};
 // Capture a short highlight only when the player opts in and a dramatic moment occurs.
 const updateHighlight7=update;update=function(dt){if(mode!=='playing')return;updateHighlight7(dt);if(mode==='playing'&&P7.autoClip&&!V7.record&&!V7.highlighted&&(V5.combo>=45||V7.comeback||V5.danger>.85)){V7.highlighted=true;startRecord7(true);if(V7.record)V7.record.t0=t}if(V7.record?.auto&&t-(V7.record.t0||0)>=14)stopRecord7(true)};
