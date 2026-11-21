@@ -44,8 +44,8 @@
     <button id="right" aria-label="Hold to move right">→</button>
     <button id="fireButton" aria-label="Hold to fire">FIRE</button>
   </div>
-  <div class="tools"><button id="pause" aria-label="Pause game">Ⅱ</button><button id="mute" aria-label="Toggle sound" aria-pressed="false">Sound off</button><button id="portrait" aria-pressed="false" aria-label="Toggle portrait recording layout">9:16</button><button id="full" aria-label="Fullscreen">⛶</button></div>
-</div><section class="overlay" id="menu"><h1 class="title">SANTA</h1><div class="subtitle">The Road to the North Pole</div><p class="intro">Blast zombie elves with cookies and milk in this free 3D Christmas survival game. Recruit a Santa army and fight giant bosses across 100 campaign levels and 22 worlds.</p><button class="play" id="play">PLAY NOW</button><span class="intro desktopGuide">Steer with ← and →. Hold ↑ or Space to fire. Mouse and controller also work.</span><span class="intro mobileGuide">Drag across the road or hold an arrow to steer. Hold FIRE to shoot while you move.</span><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="results" hidden><h2 id="resulttitle"></h2><div id="resultinfo"></div><button class="play" id="restart">PLAY AGAIN</button><button id="home">Main menu</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="paused" hidden><h2>Game paused</h2><button class="play" id="resume">RESUME</button><button id="reset">Restart run</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer><div></div></section><div id="error" class="error" hidden></div><noscript><div class="error">Enable JavaScript to play Santa: The Road to the North Pole.</div></noscript></main>
+  <div class="tools" id="gameTools"><button id="moreTools" aria-expanded="false" aria-controls="gameTools">More</button><button id="pause" aria-label="Pause game">Ⅱ</button><button id="mute" aria-label="Toggle sound" aria-pressed="false">Sound off</button><button id="portrait" aria-pressed="false" aria-label="Toggle portrait recording layout">9:16</button><button id="full" aria-label="Fullscreen">⛶</button></div>
+</div><section class="overlay" id="menu"><h1 class="title">SANTA</h1><div class="subtitle">The Road to the North Pole</div><p class="intro">Blast zombie elves with cookies and milk in this free 3D Christmas survival game. Recruit a Santa army and fight giant bosses across 100 campaign levels and 22 worlds.</p><button class="play" id="play">PLAY NOW</button><span class="intro desktopGuide">Steer with ← and →. Hold ↑ or Space to fire. Mouse and controller also work.</span><span class="intro mobileGuide">Drag your thumb below Santa or hold an arrow to steer. Hold FIRE to shoot as you move.</span><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="results" hidden><h2 id="resulttitle"></h2><div id="resultinfo"></div><button class="play" id="restart">PLAY AGAIN</button><button id="home">Main menu</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer></section><section class="overlay" id="paused" hidden><h2>Game paused</h2><button class="play" id="resume">RESUME</button><button id="reset">Restart run</button><footer class="foot">Created by <a href="https://corneliusaurelius.com/" target="_blank" rel="noopener">Cornelius Aurelius</a></footer><div></div></section><div id="error" class="error" hidden></div><noscript><div class="error">Enable JavaScript to play Santa: The Road to the North Pole.</div></noscript></main>
 <script>
 'use strict';
 (()=>{
@@ -67,6 +67,7 @@ layout(location=4) in float yaw;
 layout(location=5) in vec3 color;
 uniform vec4 cam;
 uniform vec2 lens;
+uniform float cameraLift;
 out vec3 litColour;
 out vec3 world;
 out float depth;
@@ -85,7 +86,7 @@ void main(){
   float cy=d.y*cam.z+d.z*cam.w;
   depth=-d.y*cam.w+d.z*cam.z;
   float near=.25,far=230.;
-  gl_Position=vec4(d.x*lens.x,cy*lens.y,(far+near)/(far-near)*depth-2.*far*near/(far-near),depth);
+  gl_Position=vec4(d.x*lens.x,cy*lens.y+cameraLift*depth,(far+near)/(far-near)*depth-2.*far*near/(far-near),depth);
 }`;
 const fs=`#version 300 es
 precision highp float;
@@ -110,6 +111,7 @@ void main(){
 }`;
 function shader(type,src){const s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
 const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vs));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);const uc=gl.getUniformLocation(program,'cam'),ul=gl.getUniformLocation(program,'lens');
+const cameraLiftUniform=gl.getUniformLocation(program,'cameraLift');
 const horizonUniform=gl.getUniformLocation(program,'horizon');
 const snowTravelUniform=gl.getUniformLocation(program,'snowTravel');
 function geom(){return {v:[],tri(a,b,c,normal){let u=b.map((x,i)=>x-a[i]),w=c.map((x,i)=>x-a[i]),n=normal||[u[1]*w[2]-u[2]*w[1],u[2]*w[0]-u[0]*w[2],u[0]*w[1]-u[1]*w[0]],l=Math.hypot(...n)||1;n=n.map(x=>x/l);for(let p of [a,b,c])this.v.push(...p,...n)}}}
@@ -133,10 +135,14 @@ if(hardwareGL){
   M.coneLow=mesh(roundGeom(0,.5,7));
 }
 const meshes=Object.values(M);
-let redraw=true,captureHeight=0;
+let redraw=true,captureHeight=0,touchSeen=false,cameraLift=0;
+const compactControls=window.matchMedia?.('(any-pointer: coarse), (max-width: 600px)');
 gl.enable(gl.DEPTH_TEST);gl.clearColor(.66,.82,.95,1);
 let W=1,H=1,ratio=1,quality=.86,camY=15.5,camZ=-14,cos=.877,sin=.48,vscale=1.91,aspect=1,frameTime=0,slow=0;
-function resize(){let r=playfield.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);ratio=Math.min(devicePixelRatio||1,1.75,Math.sqrt(2200000/(W*H)))*quality;
+function resize(){
+const mobile=touchSeen||!!compactControls?.matches;
+root.classList.toggle('touch-controls',mobile);
+let r=playfield.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);ratio=Math.min(devicePixelRatio||1,1.75,Math.sqrt(2200000/(W*H)))*quality;
 if(captureHeight){
   const captureScale=captureHeight/H*Math.min(1,quality/.80);
   ratio=Math.max(ratio,Math.min(captureScale,Math.sqrt(3400000/(W*H))));
@@ -145,7 +151,13 @@ if(canvas.width!==width||canvas.height!==height||labels.width!==width||labels.he
   canvas.width=labels.width=width;
   canvas.height=labels.height=height;
 }
-redraw=true;ctx.setTransform(ratio,0,0,ratio,0,0);aspect=W/H;let narrow=clamp((.92-aspect)/.42,0,1);vscale=Math.min(aspect>1?2.07:1.91,2.3*aspect);camY=mix(15.5,22,narrow);camZ=mix(-14,-12,narrow);sin=mix(.48,.42,narrow);cos=Math.sqrt(1-sin*sin);if(aspect>1){camY=13.2;camZ=-12.8}for(let i=0;i<16;i++){const back=-2.34-camZ,dy=-camY,dep=-dy*sin+back*cos,cy=dy*cos+back*sin;if(cy*vscale/dep>=-.88)break;sin=Math.min(.72,sin+.018);cos=Math.sqrt(1-sin*sin)}gl.viewport(0,0,canvas.width,canvas.height)}if(window.ResizeObserver)new ResizeObserver(resize).observe(playfield);else window.addEventListener('resize',resize);resize();
+redraw=true;ctx.setTransform(ratio,0,0,ratio,0,0);aspect=W/H;let narrow=clamp((.92-aspect)/.42,0,1);vscale=Math.min(aspect>1?2.07:1.91,2.3*aspect);camY=mix(15.5,22,narrow);camZ=mix(-14,-12,narrow);sin=mix(.48,.42,narrow);cos=Math.sqrt(1-sin*sin);if(aspect>1){camY=13.2;camZ=-12.8}for(let i=0;i<16;i++){const back=-2.34-camZ,dy=-camY,dep=-dy*sin+back*cos,cy=dy*cos+back*sin;if(cy*vscale/dep>=-.88)break;sin=Math.min(.72,sin+.018);cos=Math.sqrt(1-sin*sin)}
+// Shift the projection rather than the player so collision and controls stay in world space.
+const heroDepth=camY*sin-camZ*cos;
+const heroY=(-camY*cos-camZ*sin)*vscale/heroDepth;
+cameraLift=mobile?clamp(-.34-heroY,0,.40):0;
+gl.viewport(0,0,canvas.width,canvas.height)
+}compactControls?.addEventListener?.('change',resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(playfield);else window.addEventListener('resize',resize);resize();
 function draw(type,x,y,z,sx,sy,sz,c,rot=0){
   if(z<-30||z>210)return;
   const compact=hardwareGL&&type!=='box'&&P7.graphics!=='ultra'&&
@@ -164,7 +176,7 @@ function draw(type,x,y,z,sx,sy,sz,c,rot=0){
   m.used+=10;
 }
 const B=(...a)=>draw('box',...a),S=(...a)=>draw('ball',...a),Y=(...a)=>draw('cyl',...a),T=(...a)=>draw('cone',...a);
-function project(x,y,z){let dy=y-camY,dz=z-camZ,dep=-dy*sin+dz*cos;if(dep<.2)return null;return [(x*vscale/aspect/dep*.5+.5)*W,(.5-(dy*cos+dz*sin)*vscale/dep*.5)*H,dep]}
+function project(x,y,z){let dy=y-camY,dz=z-camZ,dep=-dy*sin+dz*cos;if(dep<.2)return null;return [(x*vscale/aspect/dep*.5+.5)*W,(.5-(dy*cos+dz*sin)*vscale/dep*.5-cameraLift*.5)*H,dep]}
 function print(s,x,y,z,col='#fff',size=18){let p=project(x,y,z);if(!p||p[0]<-80||p[0]>W+80||p[1]<-40||p[1]>H+40)return;let f=clamp(size*43/p[2],10,34);ctx.font=`900 ${f}px system-ui`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.lineWidth=3;ctx.strokeStyle='#142739';ctx.strokeText(s,p[0],p[1]);ctx.fillStyle=col;ctx.fillText(s,p[0],p[1])}
 function shadow(x,z,s){S(x,.045,z,s*1.2,.045,s*.9,C.shadow)}
 function tree(x,z,s){Y(x,s*.26,z,s*.16,s*.55,s*.16,C.wood);for(let i=0;i<3;i++){let a=1-i*.22;T(x,s*(.55+i*.33),z,s*a,s*.72,s*a,C.green);T(x,s*(.66+i*.33),z,s*a*.76,s*.52,s*a*.76,C.snow)}}
@@ -188,10 +200,22 @@ function spawnHorde(lane,z=48){const group=spawnFormation(z,lane,23+wave*4,6),sa
 function makeGate(z,x,n){return {z,x,n,hits:0,flash:0,used:false}}
 function makeBox(z,x,hp,kind){return {z,x,hp,max:hp,kind}}
 const fireInputs=new Set(),steerInputs=new Map();
-let gamepadFireReady=false;
+let gamepadFireReady=false,extraToolsOpen=false;
+function showExtraTools(open){
+  extraToolsOpen=open;
+  $('gameTools').classList.toggle('tools-open',open);
+  $('moreTools').setAttribute('aria-expanded',String(open));
+  $('moreTools').textContent=open?'Less':'More';
+}
+$('moreTools').onclick=()=>showExtraTools(!extraToolsOpen);
+$('gameTools').addEventListener('click',event=>{
+  if(event.target.closest?.('#rec7,#weaponBtn,#mute,#portrait,#full'))showExtraTools(false);
+});
+canvas.addEventListener('pointerdown',()=>{if(extraToolsOpen)showExtraTools(false)});
+
 function clearInput(){gamepadFireReady=false;fireInputs.clear();steerInputs.clear();keys={};drag=null;fireClock=0}
 function resetState(){t=travel=dist=px=targetX=score=fireClock=boost=flash=0;spawnClock=1;gateClock=5;boxClock=6;army=1;hp=100;level=wave=1;uid=0;boss=null;bossPending=false;enemies=[];formations=[];nextLane=1;shots=[];gates=[];boxes=[];particles=[];snow=[];clearInput();for(let i=0;i<80;i++)snow.push({x:rand(-24,24),y:rand(.5,19),z:rand(-9,100),s:rand(.045,.13)});spawnHorde(-1,24);$('toast').style.opacity=0;updateHud()}
-function switchMode(m){if(m!=='playing')clearInput();mode=m;if(m==='playing')document.activeElement?.blur?.();$('menu').hidden=m!=='menu';$('results').hidden=m!=='over';$('paused').hidden=m!=='paused';$('hud').hidden=m==='menu'||m==='over';$('pause').textContent=m==='paused'?'▶':'Ⅱ';$('controls').hidden=m==='menu'||m==='over';resize()}
+function switchMode(m){if(m!=='playing'){clearInput();showExtraTools(false)}mode=m;if(m==='playing')document.activeElement?.blur?.();$('menu').hidden=m!=='menu';$('results').hidden=m!=='over';$('paused').hidden=m!=='paused';$('hud').hidden=m==='menu'||m==='over';$('pause').textContent=m==='paused'?'▶':'Ⅱ';$('controls').hidden=m==='menu'||m==='over';resize()}
 function start(){resetState();switchMode('playing');last=performance.now()}
 function end(win){if(mode!=='playing')return;best=Math.max(best,score);try{localStorage.setItem('santaNorthPoleBest',best)}catch{};$('resulttitle').textContent=win?'Christmas is saved!':'The naughty army won';$('resultinfo').textContent=`Score ${score.toLocaleString()}\nBest ${best.toLocaleString()} · Wave ${wave}/5\n${Math.round(clamp(dist/1250,0,1)*100)}% of the road completed`;switchMode('over');beep(win?700:130,.4,.08)}
 function updateHud(){$('score').textContent=score.toLocaleString();$('army').textContent=army;$('horde').textContent=enemies.length;$('wave').textContent=wave+'/5';$('health').style.width=clamp(hp,0,100)+'%';let prog=Math.round(clamp(dist/1250,0,1)*100);$('distance').textContent=prog+'%';$('progress').style.width=prog+'%';$('weapon').textContent=weapons[Math.min(level-1,weapons.length-1)];$('level').textContent=level}
@@ -223,6 +247,7 @@ function environment(){B(0,-.28,84,55,.5,220,C.snow);B(0,-.025,84,14.4,.12,220,C
 let zz=158-Math.min(75,dist*.06);for(let i=-3;i<=3;i++){let x=i*8,sz=5.5+Math.abs(i)%2;B(x,2.5,zz+Math.abs(i)*4,sz,5,5,C.wood);B(x,2.4,zz+Math.abs(i)*4-2.53,sz*.85,4.4,.09,C.darkred);T(x,5.8,zz+Math.abs(i)*4,sz*1.42,3.3,sz*1.4,C.white);for(let a of [-1,1]){B(x+a*1.35,2.8,zz+Math.abs(i)*4-2.6,.9,1.2,.08,C.gold);B(x+a*1.35,2.8,zz+Math.abs(i)*4-2.65,.11,1.2,.08,C.wood)}B(x,1.1,zz+Math.abs(i)*4-2.6,1.3,2.2,.1,C.gold)}for(let i=-3;i<=3;i++){T(i*20,7,198,24,19,24,C.ice);T(i*20,12,198,11,10,11,C.snow)}return zz;}
 function drawGate(g){const cc=g.flash>0?C.white:g.n>0?C.blue:C.darkred;B(g.x,.08,g.z,2.9,.16,1.65,g.n>0?C.blue:C.darkred);B(g.x,1.18,g.z,2.86,1.22,.19,cc);B(g.x,.58,g.z,2.95,.12,.28,C.gold);B(g.x,1.82,g.z,2.95,.12,.28,C.gold);for(let a of [-1,1]){Y(g.x+a*1.44,.95,g.z,.18,1.9,.18,C.red);for(let j=0;j<4;j++)Y(g.x+a*1.44,.23+j*.46,g.z,.22,.15,.22,C.white)}S(g.x,1.94,g.z,.30,.18,.21,C.gold)}
 function render(){for(const m of meshes)m.used=0;ctx.clearRect(0,0,W,H);let homeZ=environment();for(let g of gates)drawGate(g);for(let b of boxes)gift(b.x,0,b.z,1.8,b.kind==='weapon'?C.red:b.kind==='army'?C.green:C.blue);for(let e of enemies)enemy(e);for(let sh of positions())santa(sh.x,sh.z,sh.s,t*10,sh.hero);for(let s of shots){if(s.milk){S(s.x,s.y,s.z,.16,.18,.65,C.white)}else{Y(s.x,s.y,s.z,.43,.12,.43,C.cookie,t*7);for(let i of [-1,1])S(s.x+i*.1,s.y+.065,s.z+.07,.07,.045,.07,C.brown)}}for(let p of particles)S(p.x,p.y,p.z,p.s,p.s,p.s,p.c);for(let f of snow)S(f.x,f.y,f.z,f.s,f.s,f.s,C.white);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniform4f(uc,camY,camZ,cos,sin);gl.uniform2f(ul,vscale/aspect,vscale);if(hardwareGL){
+  gl.uniform1f(cameraLiftUniform,cameraLift);
   const sky=V6.stage.sky;
   gl.uniform3f(horizonUniform,sky[0],sky[1],sky[2]);
   gl.uniform1f(snowTravelUniform,travel%(2*PI/.37));
@@ -277,7 +302,7 @@ function release(e){
 }
 function beginPointer(e){
   if(mode!=='playing'||(e.pointerType==='mouse'&&e.button!==0))return false;
-  if(e.pointerType==='touch')root.classList.add('touch-controls');
+  if(e.pointerType==='touch'&&!touchSeen){touchSeen=true;resize()}
   e.currentTarget.setPointerCapture(e.pointerId);
   e.preventDefault();
   return true;
@@ -764,15 +789,24 @@ publishingStyles.textContent=`
 #game .v5options select {max-width:min(152px,40vw)}
 #game .v6nav button,#game .v7actions button {font-size:13px;min-height:38px}
 #game .v6tile:disabled {opacity:.70}
+#game #moreTools {display:none}
 #game.touch-controls #steer {display:grid;grid-template-columns:1fr 1fr 1.35fr}
 #game.touch-controls .desktopGuide {display:none}
 #game.touch-controls .mobileGuide {display:block}
-@media (any-pointer:coarse), (max-width:600px) {
-  #game #steer {display:grid;grid-template-columns:1fr 1fr 1.35fr}
-  #game .desktopGuide {display:none}
-  #game .mobileGuide {display:block}
-  #game .tools {display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-  #game .tools button {padding:3px 2px;min-width:0;min-height:36px;line-height:1.05;overflow-wrap:anywhere}
+#game.touch-controls .tools {display:flex;gap:5px;justify-content:stretch}
+#game.touch-controls .tools button {
+  flex:1 1 22%;min-width:0;min-height:39px;padding:4px 6px;line-height:1.1;font-size:12px
+}
+#game.touch-controls #moreTools {display:block;order:0}
+#game.touch-controls #pause {order:-4;font-size:0}
+#game.touch-controls #pause::before {content:"Pause";font-size:12px}
+#game.touch-controls #special7 {order:-3}
+#game.touch-controls #rec7.v7record {order:-2;flex-basis:16%}
+#game.touch-controls .tools:not(.tools-open) :is(#rec7:not(.v7record),#weaponBtn,#mute,#portrait,#full) {
+  display:none
+}
+#game.touch-controls .tools.tools-open :is(#rec7:not(.v7record),#weaponBtn,#mute,#portrait,#full) {
+  background:#204158
 }
 @media (max-width:650px) {
   #game #hud {
@@ -794,10 +828,10 @@ publishingStyles.textContent=`
   #game #menu .title {font-size:38px}
   #game #menu .foot {margin-top:0}
 }
-@media (any-pointer:coarse) and (orientation:landscape) {
-  #game #controls {grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);align-items:center}
-  #game #steer {order:-1}
-  #game #steer button {min-height:48px}
+@media (orientation:landscape) and (max-height:530px) {
+  #game.touch-controls #controls {grid-template-columns:minmax(0,1fr) minmax(0,1.45fr);align-items:center}
+  #game.touch-controls #steer {order:-1}
+  #game.touch-controls #steer button {min-height:48px}
 }
 @media (max-width:380px) {
   #game #menu .v5options select {max-width:min(125px,39vw)}
